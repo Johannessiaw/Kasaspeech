@@ -5,6 +5,7 @@ import {
   Activity,
   AudioLines,
   Database,
+  FileText,
   FlaskConical,
   History,
   Languages,
@@ -25,6 +26,7 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { label: "Overview", icon: LayoutDashboard, href: "/", available: true },
   { label: "Speech Studio", icon: Mic, href: "/studio", available: true },
+  { label: "Transcriptions", icon: FileText, href: "/asr", available: true },
   { label: "Model Lab", icon: AudioLines, available: false },
   { label: "Experiments", icon: FlaskConical, available: false },
   { label: "Datasets", icon: Database, available: false },
@@ -87,6 +89,13 @@ function NavigationItems({ compact = false }: { compact?: boolean }) {
 }
 
 export function StudioShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const currentPage = pathname.startsWith("/studio")
+    ? "Speech Studio"
+    : pathname.startsWith("/asr")
+      ? "Transcriptions"
+      : "Overview";
+
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[268px] flex-col border-r border-sidebar-border bg-sidebar px-4 py-5 lg:flex">
@@ -118,10 +127,10 @@ export function StudioShell({ children }: { children: ReactNode }) {
             variant="outline"
             className="border-amber-300/25 bg-amber-300/10 text-amber-200"
           >
-            Frontend only
+            Hosted ASR
           </Badge>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            Inference and data services are not connected in this phase.
+            Transcription runs through a server-side Hugging Face endpoint.
           </p>
         </div>
       </aside>
@@ -140,11 +149,11 @@ export function StudioShell({ children }: { children: ReactNode }) {
               <span aria-hidden="true" className="text-border">
                 /
               </span>
-              <span className="font-medium text-foreground">Overview</span>
+              <span className="font-medium text-foreground">{currentPage}</span>
             </div>
             <div className="ml-auto flex items-center gap-2 rounded-full border border-border/80 bg-card/70 px-3 py-1.5 text-xs text-muted-foreground">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-amber-300" />
-              Backend not connected
+              Hosted ASR proxy
             </div>
           </div>
           <nav

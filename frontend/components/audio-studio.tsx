@@ -17,6 +17,7 @@ import {
   Volume2,
   Waves,
 } from "lucide-react";
+import Link from "next/link";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -34,6 +35,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  saveTranscription,
+  type TranscriptionEntry,
+} from "@/lib/transcription-history";
 
 const ACCEPTED_AUDIO_TYPES = new Set([
   "audio/wav",
@@ -55,6 +60,7 @@ const EMPTY_WAVEFORM: number[] = [];
 
 type AudioAsset = {
   url: string;
+  blob: Blob;
   name: string;
   size: number;
   mimeType: string;
@@ -274,6 +280,9 @@ export function AudioStudio() {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [latestTranscription, setLatestTranscription] =
+    useState<TranscriptionEntry | null>(null);
   const audioLoadSequenceRef = useRef(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const microphoneStreamRef = useRef<MediaStream | null>(null);
@@ -336,6 +345,7 @@ export function AudioStudio() {
       const url = URL.createObjectURL(blob);
       setAudioAsset({
         url,
+        blob,
         name,
         size: blob.size,
         mimeType: blob.type || "audio/unknown",
@@ -347,6 +357,7 @@ export function AudioStudio() {
       setIsPlaying(false);
       setError("");
       setNotice("");
+      setLatestTranscription(null);
       setIsDecoding(true);
 
       try {
@@ -366,6 +377,7 @@ export function AudioStudio() {
   );
 
   const startRecording = async () => {
+    if (isTranscribing) return;
     setError("");
     setNotice("");
     if (
@@ -570,7 +582,8 @@ export function AudioStudio() {
       recorderStatus === "requesting" ||
       recorderStatus === "recording" ||
       recorderStatus === "paused" ||
-      recorderStatus === "processing"
+      recorderStatus === "processing" ||
+      isTranscribing
     ) {
       setError(
         "Wait for the current recording to finish, or stop or discard it before loading another file.",
@@ -639,6 +652,7 @@ export function AudioStudio() {
   };
 
   const clearAudio = () => {
+    if (isTranscribing) return;
     audioLoadSequenceRef.current += 1;
     audioElementRef.current?.pause();
     setAudioAsset(null);
@@ -648,6 +662,79 @@ export function AudioStudio() {
     setIsPlaying(false);
     setNotice("");
     setError("");
+  };
+
+  const transcribeAudio = async () => {
+    if (!audioAsset || isTranscribing) return;
+
+    setError("");
+    setNotice("");
+    setLatestTranscription(null);
+    setIsTranscribing(true);
+    const formData = new FormData();
+    formData.append("audio", audioAsset.blob, audioAsset.name);
+
+    try {
+      const response = await fetch("/api/transcriptions", {
+        method: "POST",
+        body: formData,
+      });
+
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The ASR service returned an invalid response.");
+      }
+
+      if (typeof result !== "object" || result === null) {
+        throw new Error("The ASR service returned an unexpected response.");
+      }
+      if (!response.ok) {
+        const message =
+          "error" in result && typeof result.error === "string"
+            ? result.error
+            : `Transcription failed with HTTP ${response.status}.`;
+        throw new Error(message);
+      }
+      if (
+        !("transcript" in result) ||
+        typeof result.transcript !== "string" ||
+        !("processingMs" in result) ||
+        typeof result.processingMs !== "number"
+      ) {
+        throw new Error("The ASR service did not return a valid transcript.");
+      }
+
+      const entry: TranscriptionEntry = {
+        id: crypto.randomUUID(),
+        audio: audioAsset.blob,
+        fileName: audioAsset.name,
+        mimeType: audioAsset.mimeType,
+        transcript: result.transcript,
+        durationSeconds: duration,
+        processingMs: result.processingMs,
+        createdAt: new Date().toISOString(),
+      };
+      setLatestTranscription(entry);
+
+      try {
+        await saveTranscription(entry);
+        setNotice("Transcription and audio saved to this browser’s history.");
+      } catch {
+        setNotice(
+          "Transcription succeeded, but this browser could not save it to history. Check site storage space and permissions.",
+        );
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Transcription failed. Check the endpoint configuration and try again.",
+      );
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const displaySeconds =
@@ -676,14 +763,14 @@ export function AudioStudio() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             Record speech or load an audio file, then review the original audio.
-            Transcription will be connected in a later phase.
+            Submit a clip to hosted ASR and keep its result in this browser.
           </p>
         </div>
         <Badge
           variant="outline"
           className="w-fit border-amber-300/25 bg-amber-300/10 text-amber-200"
         >
-          ASR not connected
+          Hosted ASR
         </Badge>
       </section>
 
@@ -790,7 +877,7 @@ export function AudioStudio() {
                   <Button
                     type="button"
                     onClick={() => void startRecording()}
-                    disabled={recorderStatus === "processing"}
+                    disabled={recorderStatus === "processing" || isTranscribing}
                     className="h-10 gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
                   >
                     <Mic aria-hidden="true" className="size-4" />
@@ -870,6 +957,7 @@ export function AudioStudio() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={isTranscribing}
                   className="font-semibold text-violet-300 underline decoration-violet-300/40 underline-offset-4 hover:text-violet-200"
                 >
                   browse files
@@ -883,6 +971,7 @@ export function AudioStudio() {
                 type="file"
                 accept=".wav,.mp3,.m4a,.flac,.ogg,.webm,audio/*"
                 onChange={handleFileChange}
+                disabled={isTranscribing}
                 className="sr-only"
                 aria-label="Choose an audio file"
               />
@@ -922,6 +1011,7 @@ export function AudioStudio() {
                   <button
                     type="button"
                     onClick={clearAudio}
+                    disabled={isTranscribing}
                     aria-label="Remove selected audio"
                     title="Remove audio"
                     className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1082,6 +1172,22 @@ export function AudioStudio() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 border-t border-border/70 pt-4">
+                  <Button
+                    type="button"
+                    onClick={() => void transcribeAudio()}
+                    disabled={isTranscribing}
+                    className="h-8 gap-2 bg-violet-500 px-3 text-xs text-white hover:bg-violet-400"
+                  >
+                    {isTranscribing ? (
+                      <span
+                        aria-hidden="true"
+                        className="size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                      />
+                    ) : (
+                      <AudioLines aria-hidden="true" className="size-3.5" />
+                    )}
+                    {isTranscribing ? "Transcribing…" : "Transcribe audio"}
+                  </Button>
                   <a
                     href={audioAsset.url}
                     download={audioAsset.name}
@@ -1097,6 +1203,11 @@ export function AudioStudio() {
                     {audioAsset.mimeType}
                   </Badge>
                 </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Selecting Transcribe sends this audio to your configured
+                  Hugging Face endpoint. Successful audio and transcript are
+                  stored in this browser only.
+                </p>
               </>
             ) : (
               <div className="flex min-h-[310px] flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-background/30 px-5 py-9 text-center">
@@ -1123,6 +1234,36 @@ export function AudioStudio() {
         </Card>
       </div>
 
+      {latestTranscription && (
+        <Card className="border-primary/20 bg-primary/[0.04]">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AudioLines aria-hidden="true" className="size-4 text-primary" />
+              Latest transcription
+            </CardTitle>
+            <CardDescription>
+              Actual Hugging Face endpoint result ·{" "}
+              {(latestTranscription.processingMs / 1000).toFixed(1)}s
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap rounded-xl border border-border/70 bg-background/45 p-4 text-sm leading-6">
+              {latestTranscription.transcript || (
+                <span className="italic text-muted-foreground">
+                  The endpoint returned an empty transcript for this audio.
+                </span>
+              )}
+            </p>
+            <Link
+              href="/asr"
+              className="mt-4 inline-flex h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              View all transcriptions
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-sky-300/15 bg-sky-300/[0.045]">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-300/10 text-sky-200">
@@ -1130,12 +1271,12 @@ export function AudioStudio() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">
-              Audio capture is local to this browser
+              Audio storage is local to this browser
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              This phase does not upload audio or run transcription. Your file
-              is kept in the current page only and is cleared when you remove it
-              or leave the page.
+              Audio stays in the browser until you select Transcribe. That
+              action sends the selected clip to the configured Hugging Face
+              endpoint; successful results are stored in this browser’s history.
             </p>
           </div>
           {recorderStatus === "idle" && !audioAsset && (
