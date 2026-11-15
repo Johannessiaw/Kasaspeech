@@ -59,11 +59,10 @@ function hasSameOrigin(request: Request) {
 }
 
 function hasExceededRateLimit(request: Request) {
-  const forwardedAddress = request.headers
-    .get("x-forwarded-for")
-    ?.split(",")[0]
-    .trim();
-  const client = forwardedAddress || "unknown";
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const forwardedHops = forwardedFor?.split(",");
+  const client =
+    forwardedHops?.[forwardedHops.length - 1]?.trim() || "unknown";
   const now = Date.now();
   const current = requestsByClient.get(client);
 
