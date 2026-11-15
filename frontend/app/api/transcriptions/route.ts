@@ -1,8 +1,6 @@
 
 import { Client, handle_file } from "@gradio/client";
 
-export const runtime = "nodejs";
-
 const SPACE_ID = "JOHANNES02/kasaspeech";
 
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
@@ -172,11 +170,13 @@ export async function POST(request: Request) {
     const client = await Client.connect(SPACE_ID);
 
     // Send the uploaded audio to the /transcribe API.
-    const result = await client.predict("/transcribe", [
+    const result = await client.predict<unknown[]>("/transcribe", [
       handle_file(audio),
     ]);
 
-    const transcript = result.data[0];
+    const transcript = Array.isArray(result.data)
+      ? result.data[0]
+      : undefined;
 
     if (typeof transcript !== "string") {
       return jsonResponse(
