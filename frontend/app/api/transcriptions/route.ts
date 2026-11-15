@@ -12,7 +12,6 @@ const ALLOWED_AUDIO_TYPES = new Set([
   "audio/ogg",
   "audio/webm",
 ]);
-const ALLOWED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|flac|ogg|webm)$/i;
 const REQUEST_WINDOW_MS = 60_000;
 const REQUEST_LIMIT = 10;
 
@@ -136,10 +135,8 @@ export async function POST(request: Request) {
   if (audio.size > MAX_AUDIO_BYTES) {
     return jsonResponse({ error: "Audio files must be 50 MB or smaller." }, 413);
   }
-  if (
-    !ALLOWED_AUDIO_TYPES.has(audio.type.toLowerCase()) &&
-    !ALLOWED_AUDIO_EXTENSIONS.test(audio.name)
-  ) {
+  const contentType = audio.type.toLowerCase().split(";", 1)[0].trim();
+  if (!ALLOWED_AUDIO_TYPES.has(contentType)) {
     return jsonResponse(
       { error: "Use WAV, MP3, M4A, FLAC, OGG, or WebM audio." },
       415,
