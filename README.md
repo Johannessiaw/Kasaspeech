@@ -1,30 +1,56 @@
-# Kasaspeech
-ASR
+# KasaSpeech
 
-## KasaSpeech AI Studio frontend
+KasaSpeech is an independent Ghanaian English–Twi speech-recognition project with a browser-based studio for recording or uploading audio, reviewing model output, and keeping transcription history locally; hosted inference is optional and uses a server-side Hugging Face Inference Endpoint proxy.
 
-The standalone Next.js app in `frontend/` provides the dashboard, a browser-local
-Speech Studio, and a hosted-ASR transcription screen. Transcription runs only
-when a user submits audio to a configured Hugging Face Inference Endpoint.
+## Project folders
+
+- `frontend/` — Next.js AI Studio, microphone and upload workspace, hosted-ASR proxy, and browser-local transcription history.
+- `audits/` — training and transcript-normalization scripts, plus focused normalization tests.
+- `kasaspeech_independent/` — separate Gradio prototype, Hugging Face service adapters, and Python tests.
+
+## Run locally
 
 ```bash
 cd frontend
-npm install
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Run `npm run lint` and
-`npm run build` from `frontend/` to verify the app.
+Open [http://localhost:3000](http://localhost:3000). Set the two server-side environment variables in `frontend/.env.local` to enable hosted transcription:
 
-Open `/studio` to record or review audio and `/asr` to review transcriptions
-saved in this browser. The frontend and same-origin ASR proxy use port 3000.
-Configure `KASASPEECH_ASR_ENDPOINT_URL` and `HF_TOKEN` as server-side Codespaces
-secrets; never expose `HF_TOKEN` to browser code. Audio is sent to the endpoint
-only when **Transcribe audio** is selected. Translation and TTS are not
-connected yet.
+- `KASASPEECH_ASR_ENDPOINT_URL` — the HTTPS URL of the Hugging Face Inference Endpoint.
+- `HF_TOKEN` — a Hugging Face token authorized to call that endpoint.
 
-The existing Gradio prototype and imported source snapshots remain separate
-and unchanged. The frontend uses a same-origin server-side proxy to call the
-configured Hugging Face endpoint. `HF_TOKEN` must remain a server-side
-Codespaces secret and must never be added to frontend code or a `NEXT_PUBLIC_`
-variable.
+Keep `.env.local` private and untracked. The app can run without these values, but hosted transcription will remain unavailable.
+
+## Run in Codespaces
+
+Add `KASASPEECH_ASR_ENDPOINT_URL` and `HF_TOKEN` as Codespaces secrets, then restart the frontend process. Open the forwarded port **3000**. Keep the port private; the token is read only by the server and must never be exposed through a `NEXT_PUBLIC_` variable.
+
+## Verify
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
+Run the Gradio prototype tests after installing its dependencies:
+
+```bash
+python -m pip install -r kasaspeech_independent/requirements.txt
+python -m unittest discover -s kasaspeech_independent/tests -v
+```
+
+Run the focused audit-script test with pytest:
+
+```bash
+python -m pip install pytest
+python -m pytest audits/test_normalization_v3.py
+```
+
+## Privacy and transcription history
+
+Audio stays in the browser until **Transcribe audio** is selected; only then is the selected clip sent to the configured Hugging Face endpoint. Successful audio and transcript results are stored in IndexedDB in that browser, not in a KasaSpeech database. `/asr` lists and plays those completed local-history items; clearing browser site data removes them. Translation and TTS are not connected in the Next.js frontend.
