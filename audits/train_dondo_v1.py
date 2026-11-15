@@ -1,12 +1,20 @@
 
+"""Kaggle training cell; run after the project setup cells.
+
+The notebook namespace must provide CONFIG, REPO, HF_TOKEN, hf_hub_download,
+processor, tok, api, MODEL, log_step, and load_clean. `clean` may already be
+loaded; otherwise load_clean() rebuilds it from the source dataset.
+"""
+
 import os, time, json, gc, numpy as np, pandas as pd, torch, jiwer
 from transformers import Wav2Vec2BertForCTC
 from huggingface_hub import snapshot_download
 
+from audits.normalization_v3 import normalize_transcript_v3
+
 C = CONFIG
 REMOTE = "train/" + C["RUN"]
 dev = "cuda"
-exec(open(hf_hub_download(REPO, "audits/normalization_v3.py", repo_type="model", token=HF_TOKEN)).read())
 if "clean" not in globals():
     load_clean()
 
@@ -56,7 +64,8 @@ local = snapshot_download(REPO, repo_type="model", token=HF_TOKEN,
                           allow_patterns=[REMOTE + "/ckpt/*"], force_download=True)
 ck = os.path.join(local, REMOTE, "ckpt")
 if os.path.exists(os.path.join(ck, "state.json")):
-    state = json.load(open(os.path.join(ck, "state.json")))
+    with open(os.path.join(ck, "state.json"), encoding="utf-8") as state_file:
+        state = json.load(state_file)
     model = Wav2Vec2BertForCTC.from_pretrained(ck)
     print("RESUMING at update", state["update"], "epoch", state["epoch"])
 else:
@@ -108,7 +117,8 @@ def save_ckpt(wait=False):
     global fut
     if fut is not None: fut.result()            # never overwrite files still uploading
     model.save_pretrained("ckpt_local", safe_serialization=True)
-    json.dump(state, open("ckpt_local/state.json", "w"))
+    with open("ckpt_local/state.json", "w", encoding="utf-8") as state_file:
+        json.dump(state, state_file)
     fut = api.upload_folder(folder_path="ckpt_local", path_in_repo=REMOTE + "/ckpt",
                             repo_id=REPO, repo_type="model", run_as_future=True,
                             commit_message="checkpoint at update %d" % state["update"])

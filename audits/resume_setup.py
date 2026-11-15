@@ -1,10 +1,23 @@
 
 import os, datetime, pandas as pd
 from huggingface_hub import HfApi, hf_hub_download
-from kaggle_secrets import UserSecretsClient
+from huggingface_hub.errors import EntryNotFoundError
 from transformers import AutoProcessor
 
-HF_TOKEN = UserSecretsClient().get_secret("HF_TOKEN")
+HF_TOKEN = os.environ.get("HF_TOKEN")
+if not HF_TOKEN:
+    try:
+        from kaggle_secrets import UserSecretsClient
+    except ImportError as error:
+        raise RuntimeError(
+            "Set HF_TOKEN in the environment or configure the Kaggle HF_TOKEN secret."
+        ) from error
+    HF_TOKEN = UserSecretsClient().get_secret("HF_TOKEN")
+if not HF_TOKEN:
+    raise RuntimeError(
+        "Set HF_TOKEN in the environment or configure the Kaggle HF_TOKEN secret."
+    )
+
 REPO  = "JOHANNES02/KASASPEECH"
 MODEL = "KhayaAI/w2v-bert-ada_ewe_fat_fra_gaa_nzi_twi_en"
 DS    = "Kennethdot/Ghana_English-Twi_Code-switching_Speech"
@@ -19,12 +32,17 @@ def push(*paths):
 def log_step(text):
     p = "audits/progress_log.md"
     try:
-        old = open(hf_hub_download(REPO, p, repo_type="model", token=HF_TOKEN,
-                                   force_download=True)).read()
-    except Exception:
+        downloaded_log = hf_hub_download(
+            REPO, p, repo_type="model", token=HF_TOKEN, force_download=True
+        )
+    except EntryNotFoundError:
         old = "# KasaSpeech progress log\n"
-    stamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    open(p, "w").write(old.rstrip("\n") + f"\n- {stamp}: {text}\n")
+    else:
+        with open(downloaded_log, encoding="utf-8") as log_file:
+            old = log_file.read()
+    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC")
+    with open(p, "w", encoding="utf-8") as log_file:
+        log_file.write(old.rstrip("\n") + f"\n- {stamp}: {text}\n")
     push(p)
 
 df = pd.read_csv(hf_hub_download(REPO, "audits/normalization_v3_manifest.csv",
@@ -40,6 +58,8 @@ m["frames"]     = (m["duration"] * 24.9).astype(int)
 m["ratio"]      = m["ctc_needed"] / m["frames"]
 m["cps"]        = m["label_len"] / m["duration"]
 
+# These are original split row indices excluded from the cleaned dataset; the
+# lists let original_index map cleaned-manifest positions back to source rows.
 EXCL = {"train": [7837, 8333, 29958, 38521, 38678, 38770, 39685, 45856, 46026, 46669, 48590],
         "validation": [253, 1607], "test": [390, 859, 864]}
 
