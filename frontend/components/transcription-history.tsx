@@ -6,6 +6,8 @@ import {
   AudioLines,
   Check,
   Clipboard,
+  Download,
+  Headphones,
   Mic,
   Trash2,
 } from "lucide-react";
@@ -30,24 +32,57 @@ function AudioPreview({ entry }: { entry: TranscriptionEntry }) {
 
   useEffect(() => {
     const player = audioRef.current;
-    if (!player) return;
     const url = URL.createObjectURL(entry.audio);
-    player.src = url;
+    if (player) player.src = url;
     return () => {
-      player.pause();
-      player.removeAttribute("src");
+      if (player) {
+        player.pause();
+        player.removeAttribute("src");
+      }
       URL.revokeObjectURL(url);
     };
   }, [entry.audio]);
 
+  const downloadAudio = () => {
+    const url = URL.createObjectURL(entry.audio);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = entry.fileName;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   return (
-    <audio
-      ref={audioRef}
-      controls
-      preload="metadata"
-      className="h-10 w-full"
-      aria-label={`Play ${entry.fileName}`}
-    />
+    <div className="rounded-2xl border border-border/70 bg-background/50 p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-300/10 text-sky-200">
+          <Headphones aria-hidden="true" className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Original audio</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            Play back the audio used for this transcription.
+          </p>
+        </div>
+      </div>
+      <audio
+        ref={audioRef}
+        controls
+        preload="metadata"
+        className="h-12 w-full"
+        aria-label={`Play ${entry.fileName}`}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={downloadAudio}
+        className="mt-4 gap-2"
+      >
+        <Download aria-hidden="true" className="size-3.5" />
+        Download original audio
+      </Button>
+    </div>
   );
 }
 
@@ -71,16 +106,16 @@ function TranscriptionCard({
 
   return (
     <Card className="border-border/80 bg-card/80">
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 border-b border-border/60 pb-5">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <AudioLines aria-hidden="true" className="size-[18px]" />
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <AudioLines aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0">
-            <CardTitle className="truncate text-sm font-medium">
+            <CardTitle className="truncate text-base font-semibold">
               {entry.fileName}
             </CardTitle>
-            <CardDescription className="mt-1.5">
+            <CardDescription className="mt-1.5 text-xs">
               {new Date(entry.createdAt).toLocaleString()} ·{" "}
               {Math.max(1, Math.round(entry.audio.size / 1024))} KB ·{" "}
               {(entry.processingMs / 1000).toFixed(1)}s round trip
@@ -98,20 +133,23 @@ function TranscriptionCard({
           <Trash2 aria-hidden="true" />
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="grid gap-5 pt-5 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)] lg:gap-6">
         <AudioPreview entry={entry} />
-        <div className="rounded-xl border border-border/70 bg-background/45 p-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground">
-              ASR transcription
-            </span>
+        <div className="flex min-h-64 flex-col rounded-2xl border border-primary/15 bg-primary/[0.035] p-5 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-violet-200/80">
+                ASR result
+              </p>
+              <h3 className="mt-1 text-sm font-semibold">Transcription</h3>
+            </div>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => void copyTranscript()}
               disabled={!entry.transcript}
-              className="h-7 gap-1.5 px-2 text-xs"
+              className="gap-1.5"
             >
               {copyState === "copied" ? (
                 <Check aria-hidden="true" className="size-3.5" />
@@ -122,10 +160,10 @@ function TranscriptionCard({
                 ? "Copied"
                 : copyState === "error"
                   ? "Copy failed"
-                  : "Copy"}
+                  : "Copy transcript"}
             </Button>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-6">
+          <p className="flex-1 whitespace-pre-wrap text-base leading-7 text-foreground sm:text-lg sm:leading-8">
             {entry.transcript || (
               <span className="italic text-muted-foreground">
                 The endpoint returned an empty transcript for this audio.
@@ -212,7 +250,7 @@ export function TranscriptionHistory() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <section className="rounded-3xl border border-border/70 bg-gradient-to-br from-violet-500/[0.10] via-card/70 to-sky-400/[0.06] p-6 sm:p-8 lg:p-10">
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Badge className="border border-primary/25 bg-primary/15 text-violet-100 hover:bg-primary/15">
@@ -241,22 +279,30 @@ export function TranscriptionHistory() {
               </span>
             )}
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Transcriptions
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+            ASR transcription workspace
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Review every audio clip transcribed in this browser, listen again,
-            copy its actual model output, or remove it from local history.
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
+            Listen to each original recording while reviewing its recognized
+            speech. Transcripts and audio saved from Speech Studio appear here.
           </p>
         </div>
-        <Button
-          nativeButton={false}
-          render={<Link href="/studio" />}
-          className="w-fit gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
-        >
-          <Mic aria-hidden="true" className="size-4" />
-          Open Speech Studio
-        </Button>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Button
+            nativeButton={false}
+            render={<Link href="/studio" />}
+            className="h-10 gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
+          >
+            <Mic aria-hidden="true" className="size-4" />
+            Open Speech Studio
+          </Button>
+          {!isLoading && !error && (
+            <span className="text-sm text-muted-foreground">
+              {entries.length} saved{" "}
+              {entries.length === 1 ? "transcription" : "transcriptions"}
+            </span>
+          )}
+        </div>
       </section>
 
       <div className="flex items-start gap-3 rounded-xl border border-sky-300/15 bg-sky-300/[0.05] px-4 py-3.5 text-xs leading-5 text-sky-100/80">
