@@ -38,17 +38,19 @@ function jsonResponse(body: unknown, status = 200) {
 
 function hasSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  const forwardedHost = request.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    .trim();
-
-  const host = forwardedHost || request.headers.get("host");
-
-  if (!origin || !host) return false;
+  if (!origin) return false;
 
   try {
-    return new URL(origin).host === host;
+    const originUrl = new URL(origin);
+
+    const allowedHosts = [
+      request.headers.get("host"),
+      request.headers.get("x-forwarded-host")?.split(",")[0].trim(),
+    ].filter(Boolean);
+
+    return allowedHosts.some(
+      (host) => originUrl.host === host,
+    );
   } catch {
     return false;
   }
