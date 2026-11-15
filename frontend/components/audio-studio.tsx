@@ -102,7 +102,10 @@ function errorMessage(error: unknown) {
     return "No microphone was found. Connect a microphone and try again.";
   }
   if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-    return "The microphone is busy or unavailable. Close other apps using it and try again.";
+    return "The browser could not open the microphone. Close other tabs or apps using it (such as calls or voice recorders), check your device’s microphone privacy settings, then retry. You can also load an audio file below.";
+  }
+  if (error.name === "OverconstrainedError") {
+    return "The microphone does not support the requested settings. Check your selected input device or use an audio file instead.";
   }
   if (error.name === "NotSupportedError") {
     return "This browser cannot play this audio format.";
@@ -377,14 +380,32 @@ export function AudioStudio() {
 
     setRecorderStatus("requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: { ideal: 1 },
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            autoGainControl: { ideal: true },
+          },
+        });
+      } catch (constraintError) {
+        if (
+          !(
+            constraintError instanceof DOMException &&
+            ["NotReadableError", "OverconstrainedError"].includes(
+              constraintError.name,
+            )
+          )
+        ) {
+          throw constraintError;
+        }
+
+        setNotice("Retrying microphone access with the browser’s default settings…");
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setNotice("Microphone opened using the browser’s default settings.");
+      }
       microphoneStreamRef.current = stream;
       audioElementRef.current?.pause();
       chunksRef.current = [];
