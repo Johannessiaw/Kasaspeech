@@ -83,6 +83,7 @@ export function DashboardOverview() {
             connected data will be added in later phases.
           </p>
           <Button
+            nativeButton={false}
             render={<Link href="/studio" />}
             className="mt-6 h-10 gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
           >

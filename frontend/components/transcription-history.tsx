@@ -250,6 +250,7 @@ export function TranscriptionHistory() {
           </p>
         </div>
         <Button
+          nativeButton={false}
           render={<Link href="/studio" />}
           className="w-fit gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
         >
