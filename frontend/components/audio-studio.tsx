@@ -97,24 +97,26 @@ function supportsAudioFile(file: File) {
 }
 
 function errorMessage(error: unknown) {
-  if (!(error instanceof DOMException)) {
-    return "The audio could not be opened. Try another supported audio file.";
-  }
+  const name =
+    error instanceof DOMException || error instanceof Error ? error.name : "";
 
-  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+  if (name === "NotAllowedError") {
     return "Microphone access was denied. Allow microphone access in your browser settings, then try again.";
   }
-  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
     return "No microphone was found. Connect a microphone and try again.";
   }
-  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+  if (name === "NotReadableError" || name === "TrackStartError") {
     return "The browser could not open the microphone. Close other tabs or apps using it (such as calls or voice recorders), check your device’s microphone privacy settings, then retry. You can also load an audio file below.";
   }
-  if (error.name === "OverconstrainedError") {
+  if (name === "SecurityError") {
+    return "The browser blocked microphone access for security reasons. Open KasaSpeech over HTTPS or localhost and check the browser’s site permissions.";
+  }
+  if (name === "OverconstrainedError") {
     return "The microphone does not support the requested settings. Check your selected input device or use an audio file instead.";
   }
-  if (error.name === "NotSupportedError") {
-    return "This browser cannot play this audio format.";
+  if (name === "NotSupportedError") {
+    return "This browser cannot play this audio format or continue the recording.";
   }
   return "The audio operation failed. Check your microphone or file and try again.";
 }
@@ -292,6 +294,7 @@ export function AudioStudio() {
   const startedAtRef = useRef<number | null>(null);
   const elapsedRef = useRef(0);
   const discardRecordingRef = useRef(false);
+  const mountedRef = useRef(false);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -311,21 +314,27 @@ export function AudioStudio() {
     return () => URL.revokeObjectURL(audioAsset.url);
   }, [audioAsset]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        recorder.onstop = null;
-        recorder.stop();
+      try {
+        if (recorder && recorder.state !== "inactive") {
+          recorder.onstop = null;
+          recorder.stop();
+        }
+      } finally {
+        microphoneStreamRef.current
+          ?.getTracks()
+          .forEach((track) => track.stop());
+        const audioContext = audioContextRef.current;
+        if (audioContext && audioContext.state !== "closed") {
+          void audioContext.close();
+        }
       }
-      microphoneStreamRef.current?.getTracks().forEach((track) => track.stop());
-      const audioContext = audioContextRef.current;
-      if (audioContext && audioContext.state !== "closed") {
-        void audioContext.close();
-      }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const releaseMicrophone = useCallback(() => {
     microphoneStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -380,12 +389,32 @@ export function AudioStudio() {
     if (isTranscribing) return;
     setError("");
     setNotice("");
+    if (!window.isSecureContext) {
+      setError(
+        "Microphone recording requires a secure page. Open KasaSpeech over HTTPS or localhost.",
+      );
+      return;
+    }
     if (
       !navigator.mediaDevices?.getUserMedia ||
-      typeof window.MediaRecorder === "undefined"
+      typeof window.MediaRecorder === "undefined" ||
+      typeof window.MediaRecorder.isTypeSupported !== "function"
     ) {
       setError(
         "Microphone recording is not supported in this browser. Try a current version of Chrome, Edge, or Firefox over HTTPS.",
+      );
+      return;
+    }
+    const mimeType = [
+      "audio/webm;codecs=opus",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+      "audio/webm",
+      "audio/ogg",
+    ].find((candidate) => window.MediaRecorder.isTypeSupported(candidate));
+    if (!mimeType) {
+      setError(
+        "This browser does not support a recording format that KasaSpeech can use. Try a current version of Chrome, Edge, or Firefox.",
       );
       return;
     }
@@ -418,6 +447,10 @@ export function AudioStudio() {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setNotice("Microphone opened using the browser’s default settings.");
       }
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       microphoneStreamRef.current = stream;
       audioElementRef.current?.pause();
       chunksRef.current = [];
@@ -425,34 +458,29 @@ export function AudioStudio() {
       elapsedRef.current = 0;
       setElapsedMs(0);
 
-      let mimeType = "";
-      for (const candidate of [
-        "audio/webm;codecs=opus",
-        "audio/ogg;codecs=opus",
-        "audio/mp4",
-        "audio/webm",
-        "audio/ogg",
-      ]) {
-        if (MediaRecorder.isTypeSupported(candidate)) {
-          mimeType = candidate;
-          break;
-        }
-      }
-      const recorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType } : undefined,
-      );
+      const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      recorder.onerror = () => {
-        setError("The browser could not continue recording. Try again.");
+      recorder.onerror = (event) => {
+        const recorderError =
+          "error" in event && event.error instanceof DOMException
+            ? event.error
+            : null;
+        setError(
+          recorderError
+            ? errorMessage(recorderError)
+            : "The browser could not continue recording. Try again.",
+        );
         discardRecordingRef.current = true;
-        if (recorder.state !== "inactive") recorder.stop();
         setRecorderStatus("processing");
-        releaseMicrophone();
+        try {
+          if (recorder.state !== "inactive") recorder.stop();
+        } finally {
+          releaseMicrophone();
+        }
       };
       recorder.onstop = () => {
         releaseMicrophone();
