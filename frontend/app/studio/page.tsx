@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AudioStudio } from "@/components/audio-studio";
 
 export const metadata: Metadata = {
-  title: "Speech Studio | KasaSpeech AI Studio",
+  title: "Speech Studio | LINGUA AI",
 };
 
 export default function SpeechStudioPage() {

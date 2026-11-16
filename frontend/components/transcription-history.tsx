@@ -11,7 +11,7 @@ import {
   Mic,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import {
   listTranscriptions,
   type TranscriptionEntry,
 } from "@/lib/transcription-history";
+import { saveWorkspaceDraft } from "@/lib/workspace-draft";
 
 function AudioPreview({ entry }: { entry: TranscriptionEntry }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -94,6 +95,20 @@ function TranscriptionCard({
   onDelete: (id: string) => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [transferError, setTransferError] = useState("");
+
+  const transferTranscript = (
+    target: "translation" | "assistant" | "tts",
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => {
+    try {
+      saveWorkspaceDraft(target, entry.transcript);
+      setTransferError("");
+    } catch {
+      event.preventDefault();
+      setTransferError("Could not transfer this transcript to the selected workspace.");
+    }
+  };
 
   const copyTranscript = async () => {
     try {
@@ -170,6 +185,14 @@ function TranscriptionCard({
               </span>
             )}
           </p>
+          {entry.transcript && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href="/translate" onClick={(event) => transferTranscript("translation", event)} className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-[11px] font-medium text-primary-foreground hover:opacity-90">Translate</Link>
+              <Link href="/assistant" onClick={(event) => transferTranscript("assistant", event)} className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-2.5 text-[11px] font-medium text-foreground hover:bg-muted">Ask assistant</Link>
+              <Link href="/tts" onClick={(event) => transferTranscript("tts", event)} className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-2.5 text-[11px] font-medium text-foreground hover:bg-muted">Speak text</Link>
+            </div>
+          )}
+          {transferError && <p role="alert" className="mt-2 text-[11px] text-rose-300">{transferError}</p>}
         </div>
       </CardContent>
     </Card>
@@ -268,7 +291,7 @@ export function TranscriptionHistory() {
               {endpointStatus === "checking"
                 ? "Checking endpoint…"
                 : endpointStatus === "ready"
-                  ? "Server credentials configured"
+                  ? "KasaSpeech Space configured"
                   : endpointStatus === "missing"
                     ? "Endpoint setup required"
                     : "Endpoint status unavailable"}
@@ -316,10 +339,9 @@ export function TranscriptionHistory() {
 
       {endpointStatus === "missing" && (
         <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3.5 text-sm leading-6 text-amber-100/90">
-          Hosted transcription is not configured in this Codespace yet. Add
-          KASASPEECH_ASR_ENDPOINT_URL and HF_TOKEN as server-side Codespaces
-          secrets, then restart the app. Never put HF_TOKEN in frontend code or
-          a NEXT_PUBLIC_ variable.
+          The KasaSpeech Space is not configured for this frontend. Verify the
+          Space identifier in the server-side transcription route. Never put a
+          provider token in frontend code or a NEXT_PUBLIC_ variable.
         </div>
       )}
       {endpointStatus === "unavailable" && (

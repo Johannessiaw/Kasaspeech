@@ -21,6 +21,7 @@ import Link from "next/link";
 import {
   type ChangeEvent,
   type DragEvent,
+  type MouseEvent,
   useCallback,
   useEffect,
   useRef,
@@ -39,6 +40,7 @@ import {
   saveTranscription,
   type TranscriptionEntry,
 } from "@/lib/transcription-history";
+import { saveWorkspaceDraft } from "@/lib/workspace-draft";
 
 const ACCEPTED_AUDIO_TYPES = new Set([
   "audio/wav",
@@ -744,6 +746,7 @@ export function AudioStudio() {
         processingMs: result.processingMs,
         createdAt: new Date().toISOString(),
       };
+
       setLatestTranscription(entry);
 
       try {
@@ -762,6 +765,18 @@ export function AudioStudio() {
       );
     } finally {
       setIsTranscribing(false);
+    }
+  };
+
+  const transferTranscript = (
+    target: "translation" | "assistant" | "tts",
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => {
+    try {
+      saveWorkspaceDraft(target, latestTranscription?.transcript ?? "");
+    } catch {
+      event.preventDefault();
+      setError("Could not transfer the transcript to the selected workspace.");
     }
   };
 
@@ -1232,8 +1247,8 @@ export function AudioStudio() {
                   </Badge>
                 </div>
                 <p className="text-xs leading-5 text-muted-foreground">
-                  Selecting Transcribe sends this audio to your configured
-                  Hugging Face endpoint. Successful audio and transcript are
+                  Selecting Transcribe sends this audio to the KasaSpeech
+                  Gradio Space. Successful audio and transcript are
                   stored in this browser only.
                 </p>
               </>
@@ -1270,7 +1285,7 @@ export function AudioStudio() {
               Latest transcription
             </CardTitle>
             <CardDescription>
-              Actual Hugging Face endpoint result ·{" "}
+              Actual KasaSpeech Space result ·{" "}
               {(latestTranscription.processingMs / 1000).toFixed(1)}s
             </CardDescription>
           </CardHeader>
@@ -1282,12 +1297,35 @@ export function AudioStudio() {
                 </span>
               )}
             </p>
-            <Link
-              href="/asr"
-              className="mt-4 inline-flex h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              View all transcriptions
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/translate"
+                onClick={(event) => transferTranscript("translation", event)}
+                className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                Translate transcript
+              </Link>
+              <Link
+                href="/assistant"
+                onClick={(event) => transferTranscript("assistant", event)}
+                className="inline-flex h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                Ask assistant
+              </Link>
+              <Link
+                href="/tts"
+                onClick={(event) => transferTranscript("tts", event)}
+                className="inline-flex h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                Speak transcript
+              </Link>
+              <Link
+                href="/asr"
+                className="inline-flex h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                View all transcriptions
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1303,8 +1341,8 @@ export function AudioStudio() {
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Audio stays in the browser until you select Transcribe. That
-              action sends the selected clip to the configured Hugging Face
-              endpoint; successful results are stored in this browser’s history.
+              action sends the selected clip to the KasaSpeech Gradio Space;
+              successful results are stored in this browser’s history.
             </p>
           </div>
           {recorderStatus === "idle" && !audioAsset && (

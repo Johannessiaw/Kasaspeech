@@ -4,8 +4,8 @@ import { StudioShell } from "@/components/studio-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KasaSpeech AI Studio",
-  description: "Ghanaian Speech Intelligence. Built for Everyone.",
+  title: "LINGUA AI",
+  description: "Break Language Barriers with AI. Speak. Listen. Translate.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

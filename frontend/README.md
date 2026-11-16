@@ -1,41 +1,41 @@
-# KasaSpeech AI Studio frontend
+# LINGUA AI frontend
 
-The Next.js workspace includes the dashboard, Speech Studio, and hosted-ASR
-transcription history.
-The Speech Studio records microphone audio in the browser, displays a live
-microphone waveform, previews supported audio files, and provides playback and
-download controls. Selecting **Transcribe audio** sends the selected clip to
-the configured Hugging Face Inference Endpoint through a server-side route.
-Actual output and the audio are saved in this browser's IndexedDB history at
-`/asr`; nothing is stored in a KasaSpeech server database.
+The Next.js App Router application provides the dashboard, browser-based
+KasaSpeech recording/upload and transcription, local transcription history,
+translation, TTS, AI assistant, provider status/tests, and a batch speech-to-
+translation workflow. The app preserves the separate Python KasaSpeech Studio.
 
 ## Run locally
 
 ```bash
-npm install
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000).
-Open `/studio` to record or review audio, then use **Transcribe audio**. Open
-`/asr` to review transcripts and audio saved in this browser. Microphone access
-requires browser permission and a secure context (HTTPS or localhost).
+Open [http://localhost:3000](http://localhost:3000). Microphone access requires
+browser permission and a secure context (HTTPS or localhost). Audio files may
+be WAV, MP3, M4A, FLAC, OGG, or WebM, up to 50 MB.
 
-Audio file support: WAV, MP3, M4A, FLAC, OGG, and WebM, up to 50 MB. Actual
-playback support depends on the browser and codec.
+## Providers
 
-## Configure hosted ASR
+See the root [README](../README.md#server-side-provider-configuration) and
+[`.env.example`](./.env.example) for supported environment variables and
+payload formats. Keep credentials server-side and restart the app after
+changing them. KasaSpeech ASR currently calls the existing
+`JOHANNES02/kasaspeech` Gradio Space. Its endpoint returns transcript text only;
+it does not return detected language, confidence, timestamps, or speakers.
 
-The transcription route runs on the same Next.js server on port 3000. It needs
-both `KASASPEECH_ASR_ENDPOINT_URL` (an HTTPS Hugging Face Inference Endpoint URL)
-and `HF_TOKEN` configured as server-side Codespaces secrets. Restart the app
-after adding secrets. The token is never sent to browser code. No endpoint is
-currently configured in this workspace; endpoint deployment may incur costs.
+The Live Translate page is batch-based, not streaming. An optional detector
+must be configured to return a language code and confidence; the current
+KasaSpeech translation endpoint supports English↔Twi only. No translation or
+speech output is fabricated when a provider is missing or fails.
 
-Audio is sent to the configured endpoint only after the user selects
-**Transcribe audio**. Successful audio and transcript history stays in the
-browser and can be removed item-by-item from `/asr`. Clearing browser site data
-also clears this history.
+Provider Integrations tests send actual requests to configured services and
+may incur provider charges. The current provider setup uses deployment
+environment variables; it is not an authenticated user-facing secret manager.
+Do not expose a credentialed installation publicly without authentication and
+tenant-isolated secret storage.
 
 ## Validate
 
@@ -44,5 +44,3 @@ npm run lint
 npx tsc --noEmit
 npm run build
 ```
-
-`HF_TOKEN` must never be exposed in a `NEXT_PUBLIC_` variable.

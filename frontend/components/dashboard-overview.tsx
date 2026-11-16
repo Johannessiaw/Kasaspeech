@@ -1,205 +1,221 @@
+"use client";
+
+import Link from "next/link";
 import {
-  Activity,
+  ArrowDownLeft,
+  ArrowRight,
   AudioLines,
-  BrainCircuit,
-  Clock3,
-  Database,
+  Bot,
+  CheckCircle2,
   Languages,
   Mic,
   Sparkles,
   Volume2,
+  Waves,
 } from "lucide-react";
-import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 
-const statusCards = [
+type ProviderStatus = {
+  translation: boolean;
+  assistant: boolean;
+  tts: boolean;
+  detection: boolean;
+};
+
+const modules = [
   {
-    label: "ASR model",
-    value: "Not connected",
-    detail: "No inference service is configured.",
-    icon: BrainCircuit,
-    iconClass: "text-sky-300",
-  },
-  {
-    label: "Transcription sessions",
-    value: "No sessions yet",
-    detail: "Session history will appear here when available.",
+    name: "Speech to text",
+    short: "ASR",
+    description: "Turn recordings into accurate text with KasaSpeech.",
+    href: "/studio",
     icon: Mic,
-    iconClass: "text-violet-300",
+    gradient: "from-blue-600 to-cyan-400",
+    glow: "bg-sky-400/20",
+    statusKey: "asr" as const,
   },
   {
-    label: "Evaluation",
-    value: "No evaluation data",
-    detail: "WER, CER, and latency are not measured yet.",
-    icon: Activity,
-    iconClass: "text-emerald-300",
+    name: "Text to speech",
+    short: "TTS",
+    description: "Generate natural speech with your connected voice model.",
+    href: "/tts",
+    icon: Volume2,
+    gradient: "from-violet-600 to-fuchsia-400",
+    glow: "bg-violet-400/20",
+    statusKey: "tts" as const,
   },
-];
-
-const services = [
-  { name: "Speech recognition", status: "Not connected", icon: AudioLines },
-  { name: "Translation", status: "Not configured", icon: Languages },
-  { name: "Speech synthesis", status: "Not configured", icon: Volume2 },
+  {
+    name: "Language translation",
+    short: "TRANSLATOR",
+    description: "Translate text between the languages your provider supports.",
+    href: "/translate",
+    icon: Languages,
+    gradient: "from-cyan-600 to-teal-400",
+    glow: "bg-teal-400/20",
+    statusKey: "translation" as const,
+  },
 ];
 
 export function DashboardOverview() {
+  const [providers, setProviders] = useState<ProviderStatus>({
+    translation: false,
+    assistant: false,
+    tts: false,
+    detection: false,
+  });
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/language", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const status: unknown = await response.json();
+        if (typeof status !== "object" || status === null || !("providers" in status)) return;
+        const items = status.providers as Record<string, { configured?: boolean }>;
+        if (active) {
+          setProviders({
+            translation: items.translation?.configured === true,
+            assistant: items.assistant?.configured === true,
+            tts: items.tts?.configured === true,
+            detection: "detectionConfigured" in status &&
+              (status as { detectionConfigured?: boolean }).detectionConfigured === true,
+          });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <div className="space-y-7">
-      <section className="relative isolate overflow-hidden rounded-3xl border border-white/[0.08] bg-[linear-gradient(115deg,oklch(0.2_0.045_270)_0%,oklch(0.17_0.025_258)_54%,oklch(0.17_0.035_235)_100%)] p-6 shadow-[0_24px_70px_-45px_oklch(0.5_0.2_270_/_55%)] sm:p-8 lg:p-10">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-20 -top-32 -z-10 size-80 rounded-full border border-primary/15"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-8 -top-20 -z-10 size-56 rounded-full border border-primary/15"
-        />
-        <div className="pointer-events-none absolute -bottom-28 right-20 -z-10 size-48 rounded-full bg-primary/10 blur-3xl" />
-
+    <div className="space-y-8">
+      <section className="relative isolate overflow-hidden rounded-[26px] border border-blue-300/[0.12] bg-[linear-gradient(112deg,#0d2860_0%,#102556_43%,#0b3451_100%)] px-6 py-7 shadow-[0_26px_75px_-48px_rgba(27,119,255,.7)] sm:px-9 sm:py-9 lg:px-11 lg:py-10">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-28 -z-10 size-80 rounded-full border border-cyan-100/[0.08]" />
+        <div aria-hidden="true" className="pointer-events-none absolute -right-1 -top-20 -z-10 size-64 rounded-full border border-cyan-100/[0.08]" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 right-48 -z-10 size-56 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="max-w-3xl">
-          <div className="mb-5 flex flex-wrap items-center gap-2">
-            <Badge className="border border-primary/25 bg-primary/15 text-violet-100 hover:bg-primary/15">
-              <Sparkles aria-hidden="true" />
-              Phase 2 · Audio capture
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              Ghanaian Speech Intelligence. Built for Everyone.
-            </span>
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-200/20 bg-cyan-100/[0.08] px-3 py-1.5 text-[11px] font-medium text-cyan-100">
+            <Sparkles aria-hidden="true" className="size-3.5" />
+            One workspace. Many voices.
           </div>
-          <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl">
-            Your speech intelligence workspace starts here.
+          <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-white sm:text-[42px]">
+            Break language barriers with AI.
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-            A dedicated home for Ghanaian English, Twi, and code-switched speech
-            experiments. Record and review audio now; model inference and
-            connected data will be added in later phases.
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-blue-100/75 sm:text-[15px] sm:leading-7">
+            Record, transcribe and translate with a growing toolkit built for
+            Ghanaian languages and conversations around the world.
           </p>
-          <Button
-            nativeButton={false}
-            render={<Link href="/studio" />}
-            className="mt-6 h-10 gap-2 bg-violet-500 px-4 text-white hover:bg-violet-400"
-          >
-            <Mic aria-hidden="true" className="size-4" />
-            Open Speech Studio
-          </Button>
-        </div>
-      </section>
-
-      <section aria-label="Workspace overview">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight">
-              Workspace overview
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Live platform data will appear here when services are connected.
-            </p>
-          </div>
-          <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-            <Clock3 aria-hidden="true" className="size-3.5" />
-            Awaiting first session
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/live-translate" className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#102556] shadow-lg transition hover:bg-cyan-50">
+              <Waves aria-hidden="true" className="size-4" />
+              Start live translate
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </Link>
+            <Link href="/integrations" className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 text-sm font-medium text-white transition hover:bg-white/[0.1]">
+              Connect a provider
+            </Link>
           </div>
         </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {statusCards.map(({ label, value, detail, icon: Icon, iconClass }) => (
-            <Card
-              key={label}
-              className="border-border/80 bg-card/80 shadow-[0_12px_35px_-28px_rgba(0,0,0,0.8)]"
-            >
-              <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-                <div className="space-y-1.5">
-                  <CardDescription>{label}</CardDescription>
-                  <CardTitle className="text-lg font-semibold">{value}</CardTitle>
-                </div>
-                <span className="rounded-xl border border-border/80 bg-background/70 p-2.5">
-                  <Icon aria-hidden="true" className={`size-[18px] ${iconClass}`} />
-                </span>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs leading-5 text-muted-foreground">{detail}</p>
-              </CardContent>
-            </Card>
+        <div className="absolute bottom-8 right-10 hidden items-end gap-1 opacity-40 xl:flex" aria-hidden="true">
+          {[20, 34, 24, 48, 30, 58, 34, 46, 22, 38, 56, 27, 44, 30, 52, 23].map((height, index) => (
+            <span key={index} className="w-1.5 rounded-full bg-cyan-200" style={{ height }} />
           ))}
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <Card className="border-border/80 bg-card/80">
-          <CardHeader>
-            <CardTitle className="text-base">Recent activity</CardTitle>
-            <CardDescription>
-              Your real transcription and experiment history will be listed here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-background/35 px-5 py-8 text-center">
-              <span className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                <Database aria-hidden="true" className="size-5" />
-              </span>
-              <h3 className="text-sm font-medium">Nothing to show yet</h3>
-              <p className="mt-1.5 max-w-sm text-xs leading-5 text-muted-foreground">
-                No sessions are stored in this workspace. Activity will show up
-                after a real backend and transcription workflow are connected.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/80 bg-card/80">
-          <CardHeader>
-            <CardTitle className="text-base">Connected services</CardTitle>
-            <CardDescription>
-              Service status is reported honestly; nothing is mocked.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
-              {services.map(({ name, status, icon: Icon }) => (
-                <li
-                  key={name}
-                  className="flex items-center gap-3 border-b border-border/70 pb-4 last:border-0 last:pb-0"
-                >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                    <Icon aria-hidden="true" className="size-[17px]" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{name}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {status}
+      <section aria-labelledby="modules-heading">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="modules-heading" className="text-lg font-semibold tracking-tight text-white">Your language workspace</h2>
+            <p className="mt-1 text-xs text-slate-400 sm:text-sm">Choose a tool to start working with speech and language.</p>
+          </div>
+          <div className="hidden items-center gap-2 text-[11px] text-slate-500 sm:flex">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            KasaSpeech ASR available
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {modules.map(({ name, short, description, href, icon: Icon, gradient, glow, statusKey }) => {
+            const connected = statusKey === "asr" || providers[statusKey];
+            return (
+              <article key={short} className="group overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#0a1c3d] shadow-[0_15px_45px_-35px_rgba(0,0,0,.8)] transition hover:-translate-y-0.5 hover:border-white/[0.15]">
+                <div className={`relative flex min-h-32 items-center justify-between overflow-hidden bg-gradient-to-br ${gradient} px-5 py-5`}>
+                  <div aria-hidden="true" className={`absolute -right-8 -top-10 size-36 rounded-full ${glow} blur-2xl`} />
+                  <div className="relative">
+                    <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/[0.09] px-2.5 py-1 text-[9px] font-bold tracking-[0.13em] text-white/90">
+                      {short}
                     </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-sky-300/15 bg-sky-300/[0.06] p-3.5">
-              <AudioLines
-                aria-hidden="true"
-                className="mt-0.5 size-4 shrink-0 text-sky-200"
-              />
-              <p className="text-xs leading-5 text-sky-100/80">
-                The current milestone is the interface foundation. No Hugging
-                Face connection, model download, or external inference call is
-                made by this dashboard.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                    <h3 className="text-lg font-semibold text-white">{name}</h3>
+                  </div>
+                  <div className="relative flex size-[58px] shrink-0 items-center justify-center rounded-[18px] border border-white/25 bg-white/15 text-white shadow-inner">
+                    <Icon aria-hidden="true" className="size-7" />
+                  </div>
+                </div>
+                <div className="bg-[#f3f7ff] px-5 py-5 text-[#17264a]">
+                  <p className="min-h-10 text-[12px] leading-5 text-[#596887]">{description}</p>
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${connected ? "text-emerald-700" : "text-amber-700"}`}>
+                      <span className={`size-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-amber-500"}`} />
+                      {connected ? (statusKey === "asr" ? "KasaSpeech ready" : "Provider configured") : "Provider not configured"}
+                    </span>
+                    <Link href={href} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0b64ec] px-3 text-xs font-semibold text-white transition hover:bg-[#0754cd]">
+                      Open workspace
+                      <ArrowRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
-      <p className="flex items-center justify-center gap-2 pb-2 text-center text-xs text-muted-foreground">
-        <Activity aria-hidden="true" className="size-3.5" />
-        Session metrics and model performance will only appear after they are
-        actually measured.
-      </p>
+      <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
+        <div className="rounded-[22px] border border-white/[0.08] bg-[#0a1c3d] p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Language pipeline</h2>
+              <p className="mt-1 text-xs text-slate-400">Speech to understanding, with clear provider status at every step.</p>
+            </div>
+            <Link href="/live-translate" className="text-xs font-medium text-cyan-300 hover:text-cyan-100">Open pipeline <ArrowRight aria-hidden="true" className="ml-1 inline size-3.5" /></Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-4">
+            {[
+              { label: "Capture speech", icon: Mic, ok: true },
+              { label: "Detect language", icon: Languages, ok: providers.detection },
+              { label: "Transcribe audio", icon: AudioLines, ok: true },
+              { label: "Translate text", icon: ArrowDownLeft, ok: providers.translation },
+            ].map(({ label, icon: Icon, ok }, index) => (
+              <div key={label} className="relative flex min-h-[84px] items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3">
+                <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${ok ? "bg-cyan-300/10 text-cyan-200" : "bg-white/[0.05] text-slate-500"}`}><Icon aria-hidden="true" className="size-4" /></span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-200">{label}</span>
+                  <span className={`mt-1 block text-[9px] ${ok ? "text-emerald-300" : "text-slate-500"}`}>{ok ? "Configured" : "Setup required"}</span>
+                </span>
+                {index < 3 && <ArrowRight aria-hidden="true" className="absolute -right-2.5 z-10 hidden size-4 text-slate-600 sm:block" />}
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-slate-500">
+            <CheckCircle2 aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-cyan-400/70" />
+            The current KasaSpeech endpoint returns transcripts only. Language detection and translation appear only when their providers are configured.
+          </p>
+        </div>
+
+        <div className="rounded-[22px] border border-white/[0.08] bg-[linear-gradient(145deg,#10264f,#0a1c3d)] p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-400/10 text-violet-200"><Bot aria-hidden="true" className="size-5" /></span>
+            <div>
+              <h2 className="text-sm font-semibold text-white">Language assistant</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Grammar, summaries and language questions, powered by your own compatible model.</p>
+            </div>
+          </div>
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/[0.12] px-3.5 py-3">
+            <span className="text-[11px] text-slate-300">{providers.assistant ? "Provider connected" : "No assistant provider yet"}</span>
+            <Link href="/assistant" className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-white">Open assistant <ArrowRight aria-hidden="true" className="size-3.5" /></Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
