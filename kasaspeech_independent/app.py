@@ -11,9 +11,7 @@ from transformers import AutoProcessor, Wav2Vec2BertForCTC
 
 from kasaspeech_independent import hf_services
 
-MODEL_ID = "JOHANNES02/KASASPEECH"
-MODEL_REVISION = "c9d9b26561193825eeeb02b5173005aae4028e4f"
-CHECKPOINT_SUBFOLDER = "train/run1/ckpt"
+MODEL_ID = "JOHANNES02/KASASPEECH-dondo-v2"
 SAMPLE_RATE = 16_000
 LOCAL_MODE = "Local KasaSpeech checkpoint"
 HOSTED_MODE = "Hosted Hugging Face endpoint"
@@ -84,12 +82,9 @@ def preview_audio(audio):
 def load_model():
     processor = AutoProcessor.from_pretrained(
         MODEL_ID,
-        revision=MODEL_REVISION,
     )
     model = Wav2Vec2BertForCTC.from_pretrained(
         MODEL_ID,
-        revision=MODEL_REVISION,
-        subfolder=CHECKPOINT_SUBFOLDER,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
